@@ -36,13 +36,13 @@ async function ytscraper(videoUrl) {
       
       return { comments, commentCount };
     });
-    console.log("🚀 ~ data ~ data:", data)
+    // console.log("🚀 ~ data ~ data:", data)
     await browser.close();
    
     const response = await axios.post('http://127.0.0.1:8000/annotate_comments_json/', {
       comments: data.comments
     });
-    // console.log("🚀 ~ ytscraper ~ response:", response)
+    
 
     return response.data;
   } catch (error) {

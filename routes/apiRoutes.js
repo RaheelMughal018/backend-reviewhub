@@ -329,17 +329,18 @@ router.post('/scrape_data', async (req, res) => {
     if (!videoUrl) {
       return res.status(400).json({ error: 'Video URL is required' });
     }
-
+    
     // Call the ytscraper function with the provided videoUrl
     const scrapedData = await ytscraper(videoUrl);
-
+    
     // // Convert scraped data to CSV format
     // const csvData = await convertToCSV(scrapedData);
-
+    
     // Send a response with the scraped data in CSV format
     res.header('Content-Type', 'text/csv');
     res.attachment('comments.csv');
-
+    
+    console.log("🚀 ~ router.post ~ scrapedData:", scrapedData)
     // console.log(scrapedData)
  
 

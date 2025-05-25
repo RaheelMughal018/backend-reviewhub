@@ -4,15 +4,15 @@ from pydantic import BaseModel
 from transformers import BertTokenizer, TFBertForSequenceClassification
 import numpy as np
 import tensorflow as tf
-# import google.generativeai as genai
-# from google.generativeai.types.generation_types import StopCandidateException
+import google.generativeai as genai
+from google.generativeai.types.generation_types import StopCandidateException
 from fastapi.middleware.cors import CORSMiddleware
 
 # FastAPI app initialization
 app = FastAPI()
 
 # # Configure Generative AI model with correct API key
-# genai.configure(api_key="AIzaSyAmyL5DDKnIEmamkf6NcoBW-lI0PIRaPQg")  # Replace with your actual API key
+genai.configure(api_key="AIzaSyBARZdL01nD-zhj9T39RuKSys9QCN1QDyY")  # Replace with your actual API key
 
 # # Load the pre-trained BERT model for sequence classification
 # bert_model = TFBertForSequenceClassification.from_pretrained(
@@ -22,24 +22,24 @@ app = FastAPI()
 # )
 
 # # Configure generation settings for the Google Generative AI
-# generation_config = {
-#     "temperature": 0.9,
-#     "top_p": 1,
-#     "top_k": 1,
-#     "max_output_tokens": 5000,
-# }
+generation_config = {
+    "temperature": 0.9,
+    "top_p": 1,
+    "top_k": 1,
+    "max_output_tokens": 5000,
+}
 
-# safety_settings = [
-#     {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
-#     {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
-#     {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
-#     {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
-# ]
+safety_settings = [
+    {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+    {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+    {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+    {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+]
 
 # # Initialize the model for Google Generative AI
-# model = genai.GenerativeModel(
-#     model_name="gemini-1.0-pro", generation_config=generation_config, safety_settings=safety_settings
-# )
+gemini_model = genai.GenerativeModel(
+    model_name="gemini-2.0-flash", generation_config=generation_config, safety_settings=safety_settings
+)
 
 model = TFBertForSequenceClassification.from_pretrained(
     "nlptown/bert-base-multilingual-uncased-sentiment",
@@ -48,13 +48,11 @@ model = TFBertForSequenceClassification.from_pretrained(
 )
 
 # Create the BERT tokenizer
-tokenizer = BertTokenizer.from_pretrained('bert-base-multilingual-cased')
+tokenizer = BertTokenizer.from_pretrained('nlptown/bert-base-multilingual-uncased-sentiment')
 
 
 # ----------------------------------------
-# model = genai.GenerativeModel(
-#     model_name="gemini-1.0-pro", generation_config=generation_config, safety_settings=safety_settings
-# )
+
 
 # # Define your BERT model architecture
 # class BERTForClassification(tf.keras.Model):
@@ -79,12 +77,16 @@ tokenizer = BertTokenizer.from_pretrained('bert-base-multilingual-cased')
 # Function to generate a summary using Google Generative AI
 def generate_summary(prompt):
     try:
-        convo = model.start_chat(history=[])
+        
+        convo = gemini_model.start_chat(history=[])
+        
         convo.send_message([prompt])
         summary = convo.last.text
+        # print("summary line no 85 +++++++++++++++++++",summary)
         return summary
     except Exception as e:
-        print("Model couldn't generate a summary for the prompt:", prompt)
+        # print("Model couldn't generate a summary for the prompt:", prompt)
+        print("Error:", str(e))
         return None
 
 # Request and response models for annotation
@@ -122,10 +124,11 @@ async def annotate_comments_json(request: CommentRequest) -> JSONResponse:
     token_type_ids = inputs['token_type_ids']
 
     # Make predictions using BERT model
+    # predictions = model.predict({'input_ids': input_ids, 'attention_mask': attention_mask, 'token_type_ids': token_type_ids})
     predictions = model.predict({'input_ids': input_ids, 'attention_mask': attention_mask, 'token_type_ids': token_type_ids})
-
     # Convert predictions to numpy array
-    predictions_array = np.array(predictions)
+    # predictions_array = np.array(predictions)
+    predictions_array = predictions.logits
 
     # Get the index of the class with the highest probability for each prediction
     dominating_classes_index = np.argmax(predictions_array, axis=1)
@@ -152,7 +155,7 @@ async def annotate_comments_json(request: CommentRequest) -> JSONResponse:
 @app.post("/recommendation_summary/")
 async def recommendation_summary(request: SummaryRequest):
     recommendation_comments = request.recommendation_comments
-    print(recommendation_comments, " here 12pxxx")
+    # print(recommendation_comments, " here 12pxxx")
     
     # Construct prompt by concatenating all recommendation comments
     prompt = 'Generate summary of the Following Text in One Paragraph :\n'

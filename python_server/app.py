@@ -18,7 +18,7 @@ class BERTForClassification(tf.keras.Model):
     
 
 # Load the BERT model
-bert_model = TFBertModel.from_pretrained('bert-base-multilingual-cased')
+bert_model = TFBertModel.from_pretrained('nlptown/bert-base-multilingual-uncased-sentiment')
 
 # Define the number of classes
 NUM_CLASSES = 5  # Replace with your number of classes
@@ -30,7 +30,7 @@ model = BERTForClassification(bert_model, NUM_CLASSES)
 model.load_weights('Model_Weights/Model_Weights')
 
 # Create an instance of the BERT tokenizer
-tokenizer = BertTokenizer.from_pretrained('bert-base-multilingual-cased')
+tokenizer = BertTokenizer.from_pretrained('nlptown/bert-base-multilingual-uncased-sentiment')
 
 
 
