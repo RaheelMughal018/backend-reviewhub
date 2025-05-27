@@ -4,7 +4,8 @@ const db = require('./dbConfig');
 const bodyParser = require('body-parser');
 const apiRoutes = require('./routes/apiRoutes'); 
 const cors = require('cors'); // Import the cors middleware
-
+const dotenv = require('dotenv');
+dotenv.config(); // Load environment variables from .env file
 // Create an instance of Express
 const app = express();
 app.use(cors()); // Enable CORS for all routes

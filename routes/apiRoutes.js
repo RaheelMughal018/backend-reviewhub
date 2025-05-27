@@ -14,13 +14,14 @@ const scrapeAmazonReviews = require('../amazonscrapper.js')
 // Function to generate a JWT token
 
 const generateToken = (user) => {
-  return jwt.sign({ email: user.email }, 'absbsbsbdjd', { expiresIn: '1h' }); // Replace 'your-secret-key' with an actual secret key
+  return jwt.sign({ email: user.email }, process.env.JWT_SECRET, { expiresIn: '1h' }); // Replace 'your-secret-key' with an actual secret key
 };
 
 // Function to verify JWT token
 const verifyToken = (token) => {
   try {
-    const decoded = jwt.verify(token, 'your-secret-key');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    console.log("🚀 ~ verifyToken ~ decoded:", decoded)
     return decoded;
   } catch (err) {
     return null;
