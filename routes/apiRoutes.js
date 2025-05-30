@@ -42,59 +42,67 @@ router.get('/users', (req, res) => {
 
 router.post('/signup', async (req, res) => {
   const { email, name, password } = req.body;
-  
 
-  // Ensure that required fields are provided
   if (!email || !name || !password) {
     return res.status(403).json({ error: 'All fields are required' });
   }
-  const Verfication_Code = generateVerificationCode(); // Generate a random 6-digit verification code
+  const Verfication_Code = generateVerificationCode();
 
   try {
-    let mail = await transporter.sendMail({
-      from: '"Review HUB" <raheelmughal018@gmail.com>',
-      to: `${email}`,
-      subject: "Verification Code",
-      text: "Verification OTP",
-      html: `
-        <p>Dear ${name},</p>
-        <p>Your One-Time Password (OTP) for verification is:</p>
-        <h1>${Verfication_Code}</h1>
-        <p>Please use this OTP to complete the verification process.</p>
-        <p>Thank you!</p>
-      `
-    });
-
-    // Insert user into the database
-    const query = 'INSERT INTO user (email, name, password, two_FA_key) VALUES (?, ?, ?,?)';
-    db.query(query, [email, name, password, Verfication_Code], (err, results) => {
+    // Check if email already exists
+    const checkQuery = 'SELECT * FROM user WHERE email = ?';
+    db.query(checkQuery, [email], (err, results) => {
       if (err) {
-        console.error('Error creating user:', err);
-        res.status(500).json({ error: 'Failed to create user' });
-      } else {
-        res.status(201).json({ message: 'User created successfully' });
+        return res.status(500).json({ error: 'Database error' });
       }
-    });
+      if (results.length > 0) {
+        // Email already exists
+        return res.status(409).json({ error: 'Email already registered' });
+      }
 
+      // If not exists, proceed with signup
+      transporter.sendMail({
+        from: '"Review HUB" <raheelmughal018@gmail.com>',
+        to: `${email}`,
+        subject: "Verification Code",
+        text: "Verification OTP",
+        html: `
+          <p>Dear ${name},</p>
+          <p>Your One-Time Password (OTP) for verification is:</p>
+          <h1>${Verfication_Code}</h1>
+          <p>Please use this OTP to complete the verification process.</p>
+          <p>Thank you!</p>
+        `
+      }, (mailErr, info) => {
+        if (mailErr) {
+          return res.status(503).json({ error: 'Failed to send verification email' });
+        }
+
+        const insertQuery = 'INSERT INTO user (email, name, password, two_FA_key) VALUES (?, ?, ?, ?)';
+        db.query(insertQuery, [email, name, password, Verfication_Code], (err, results) => {
+          if (err) {
+            return res.status(502).json({ message: `${err.message}` });
+          } else {
+            return res.status(201).json({ message: 'User created successfully' });
+          }
+        });
+      });
+    });
   } catch (error) {
-    console.error('Error sending email:', error);
-    res.status(503).json({ error: 'Failed to send verification email' });
+    console.error('Error during signup:', error);
+    res.status(503).json({ error: 'Failed to process signup' });
   }
 });
 
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
 
-  // Ensure that email and password are provided
   if (!email || !password) {
-    return res.status(403).json({ error: 'Email and password are required' });
+    return res.status(400).json({ error: 'Email and password are required' }); // Changed 403 to 400
   }
 
   try {
-    // Check user credentials in the database
     const query = 'SELECT * FROM user WHERE email = ? AND password = ?';
-    
-    // Use a promise-based approach for the database query
     const results = await new Promise((resolve, reject) => {
       db.query(query, [email, password], (err, results) => {
         if (err) {
@@ -106,20 +114,18 @@ router.post('/login', async (req, res) => {
     });
 
     if (results.length > 0) {
-      // User credentials are valid
       const user = results[0];
-      const token = generateToken(user); // Generate JWT token
-
-      // Send the token in the response body
-      res.status(201).json({ message: 'Login successful', token });
+      const token = generateToken(user);
+      return res.status(200).json({ message: 'Login successful', token }); // Changed 201 to 200
     } else {
-      res.status(401).json({ error: 'Invalid email or password' });
+      return res.status(401).json({ error: 'Invalid email or password' }); // Left as 401
     }
   } catch (error) {
     console.error('Error during login:', error);
-    res.status(500).json({ error: 'Failed to process login' });
+    return res.status(500).json({ error: 'Failed to process login' });
   }
 });
+
 
 
 
@@ -155,16 +161,6 @@ router.get('/profile', (req, res) => {
   res.json(req.cookies); // Use req.cookies to access cookies
 });
 
-
-
-
-
-
-
-
-
-
-
 router.delete('/users/email', (req, res) => {
   const { email } = req.body;
   console.log('Deleting user with email:', email);
@@ -186,17 +182,10 @@ router.delete('/users/email', (req, res) => {
   });
 });
 
-
-
-
 router.post('/users/contact', (req, res) => {
   
 });
-
-
-
-
-
+// Define a simple route to test the server
 router.get('/hello', (req, res) => {
   res.json({ message: 'Hello, World!' });
 });
@@ -212,7 +201,25 @@ router.post('/contact', async (req, res) => {
     return res.status(403).json({ error: 'All fields are required' });
   }
 
+  // SQL to create the feedback table if it doesn't exist
+  const createTableQuery = `
+    CREATE TABLE IF NOT EXISTS feedback (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      email VARCHAR(255) NOT NULL,
+      feedback TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `;
+
   try {
+    // Ensure the table exists
+    await new Promise((resolve, reject) => {
+      db.query(createTableQuery, (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+
     // Save feedback data to the database
     const insertFeedbackQuery = 'INSERT INTO feedback (email, feedback) VALUES (?, ?)';
     db.query(insertFeedbackQuery, [email, message], (err, results) => {
@@ -225,7 +232,7 @@ router.post('/contact', async (req, res) => {
     // Send email
     let mail = await transporter.sendMail({
       from: '"Review HUB" <raheelmughal018@gmail.com>',
-      to: '70126890@student.uol.edu.pk', // Replace with the desired destination email address
+      to: '70128174@student.uol.edu.pk', // Replace with the desired destination email address
       subject: 'Contact Form Submission',
       text: `Name: ${name}\nEmail: ${email}\nMessage: ${message}`,
       html: `
@@ -234,8 +241,7 @@ router.post('/contact', async (req, res) => {
         <p>Message: ${message}</p>
       `,
     });
-
-    // You can add additional logic here if needed
+    console.log("🚀 ~ router.post ~ mail:", mail)
 
     res.status(201).json({ message: 'Message sent successfully' });
   } catch (error) {
@@ -341,13 +347,12 @@ router.post('/scrape_data', async (req, res) => {
     res.header('Content-Type', 'text/csv');
     res.attachment('comments.csv');
     
-    console.log("🚀 ~ router.post ~ scrapedData:", scrapedData)
+    // console.log("🚀 ~ router.post ~ scrapedData:", scrapedData)
     // console.log(scrapedData)
- 
 
     res.status(200).send(scrapedData);
-  } catch (error) {
-    console.error('Error scraping data:', error);
+  } catch (error){
+    console.error('error scraping data:', error);
 
     // Send a meaningful error response
     res.status(500).json({ error: 'An error occurred while scraping data. Please try again later.' });
