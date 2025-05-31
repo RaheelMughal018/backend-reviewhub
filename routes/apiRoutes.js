@@ -39,60 +39,71 @@ router.get('/users', (req, res) => {
     }
   });
 });
-
 router.post('/signup', async (req, res) => {
   const { email, name, password } = req.body;
 
   if (!email || !name || !password) {
-    return res.status(403).json({ error: 'All fields are required' });
+    return res.status(400).json({ error: 'All fields are required' });
   }
-  const Verfication_Code = generateVerificationCode();
+
+  const verificationCode = generateVerificationCode();
 
   try {
     // Check if email already exists
-    const checkQuery = 'SELECT * FROM user WHERE email = ?';
-    db.query(checkQuery, [email], (err, results) => {
+    db.query('SELECT * FROM `user` WHERE email = ?', [email], (err, results) => {
       if (err) {
-        return res.status(500).json({ error: 'Database error' });
+        console.error('Database error during email check:', err);
+        return res.status(500).json({ error: 'Database error during email check' });
       }
+
       if (results.length > 0) {
-        // Email already exists
         return res.status(409).json({ error: 'Email already registered' });
       }
 
-      // If not exists, proceed with signup
-      transporter.sendMail({
-        from: '"Review HUB" <raheelmughal018@gmail.com>',
-        to: `${email}`,
-        subject: "Verification Code",
-        text: "Verification OTP",
-        html: `
-          <p>Dear ${name},</p>
-          <p>Your One-Time Password (OTP) for verification is:</p>
-          <h1>${Verfication_Code}</h1>
-          <p>Please use this OTP to complete the verification process.</p>
-          <p>Thank you!</p>
-        `
-      }, (mailErr, info) => {
-        if (mailErr) {
-          return res.status(503).json({ error: 'Failed to send verification email' });
-        }
-
-        const insertQuery = 'INSERT INTO user (email, name, password, two_FA_key) VALUES (?, ?, ?, ?)';
-        db.query(insertQuery, [email, name, password, Verfication_Code], (err, results) => {
-          if (err) {
-            return res.status(502).json({ message: `${err.message}` });
-          } else {
-            return res.status(201).json({ message: 'User created successfully' });
+      // Send verification email
+      transporter.sendMail(
+        {
+          from: '"Review HUB" <raheelmughal018@gmail.com>',
+          to: email,
+          subject: 'Verification Code',
+          text: 'Verification OTP',
+          html: `
+            <p>Dear ${name},</p>
+            <p>Your One-Time Password (OTP) for verification is:</p>
+            <h1>${verificationCode}</h1>
+            <p>Please use this OTP to complete the verification process.</p>
+            <p>Thank you!</p>
+          `,
+        },
+        (mailErr, info) => {
+          if (mailErr) {
+            console.error('Error sending verification email:', mailErr);
+            return res.status(503).json({ error: 'Failed to send verification email' });
           }
-        });
-      });
+
+          // Insert user into database
+          db.query(
+            'INSERT INTO `user` (email, name, password, two_FA_key) VALUES (?, ?, ?, ?)',
+            [email, name, password, verificationCode],
+            (insertErr, insertResults) => {
+              if (insertErr) {
+                console.error('Database error during user insert:', insertErr);
+                return res.status(500).json({ error: 'Database error during user insert' });
+              }
+
+              res.status(201).json({ message: 'User created successfully' });
+            }
+          );
+        }
+      );
     });
   } catch (error) {
-    console.error('Error during signup:', error);
-    res.status(503).json({ error: 'Failed to process signup' });
+    console.error('Unexpected error during signup:', error);
+    res.status(500).json({ error: 'Unexpected error during signup' });
   }
 });
+
+
 
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
