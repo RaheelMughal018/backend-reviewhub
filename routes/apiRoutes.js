@@ -48,6 +48,9 @@ router.post('/signup', async (req, res) => {
   if (!email || !name || !password) {
     return res.status(403).json({ error: 'All fields are required' });
   }
+  if(password.length < 8){
+    return res.json({ error: 'Password must be at least 8 characters long' });
+  }
   const Verfication_Code = generateVerificationCode(); // Generate a random 6-digit verification code
 
   try {
